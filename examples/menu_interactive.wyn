@@ -23,15 +23,15 @@ enum Event {
 
 // Decode a raw keycode from Terminal::read_key() into an Event.
 fn to_event(code: int) -> Event {
-    if code == 65 { return Event::MoveUp(code) }      // Up arrow (ESC [ A)
-    if code == 66 { return Event::MoveDown(code) }     // Down arrow (ESC [ B)
-    if code == 107 { return Event::MoveUp(code) }      // 'k'
-    if code == 106 { return Event::MoveDown(code) }    // 'j'
-    if code == 13 { return Event::Select(code) }       // Enter (CR)
-    if code == 10 { return Event::Select(code) }       // Enter (LF)
-    if code == 113 { return Event::Quit(code) }        // 'q'
-    if code == 27 { return Event::Quit(code) }         // Esc
-    return Event::Ignore(code)
+    if code == 65 { return Event.MoveUp(code) }      // Up arrow (ESC [ A)
+    if code == 66 { return Event.MoveDown(code) }     // Down arrow (ESC [ B)
+    if code == 107 { return Event.MoveUp(code) }      // 'k'
+    if code == 106 { return Event.MoveDown(code) }    // 'j'
+    if code == 13 { return Event.Select(code) }       // Enter (CR)
+    if code == 10 { return Event.Select(code) }       // Enter (LF)
+    if code == 113 { return Event.Quit(code) }        // 'q'
+    if code == 27 { return Event.Quit(code) }         // Esc
+    return Event.Ignore(code)
 }
 
 // --- Minimal width-aware rendering (see src/tui.wyn for the real library) ----
@@ -86,12 +86,12 @@ fn draw(items: string, selected: int) -> string {
     i = 0
     while i < labels.len() {
         var row = "  " + labels[i]
-        if i == selected { row = Color::green("› " + labels[i]) }
+        if i == selected { row = Color.green("› " + labels[i]) }
         out = out + "│ " + pad_to(row, w) + " │\n"
         i = i + 1
     }
     out = out + "└" + repeat_str("─", w + 2) + "┘\n"
-    out = out + Color::dim("  ↑/↓ move · enter select · q quit")
+    out = out + Color.dim("  ↑/↓ move · enter select · q quit")
     return out
 }
 
@@ -104,19 +104,19 @@ fn count_of(items: string) -> int {
 // return is the sentinel for "quit"; -2 means "selected (also quit the demo)".
 fn step(e: Event, selected: int, count: int) -> int {
     match e {
-        Event::MoveUp(x) => {
+        Event.MoveUp(x) => {
             var s = selected - 1
             if s < 0 { s = count - 1 }
             return s
         }
-        Event::MoveDown(x) => {
+        Event.MoveDown(x) => {
             var s = selected + 1
             if s >= count { s = 0 }
             return s
         }
-        Event::Select(x) => { return -2 }
-        Event::Quit(x) => { return -1 }
-        Event::Ignore(x) => { return selected }
+        Event.Select(x) => { return -2 }
+        Event.Quit(x) => { return -1 }
+        Event.Ignore(x) => { return selected }
     }
     return selected
 }
@@ -126,15 +126,15 @@ fn main() {
     var count = count_of(items)
     var selected = 0
 
-    Terminal::raw_mode()
+    Terminal.raw_mode()
     var running = true
     while running {
-        Terminal::clear()
-        Terminal::move(1, 1)
-        Terminal::write(draw(items, selected))
-        Terminal::write("\n")
+        Terminal.clear()
+        Terminal.move(1, 1)
+        Terminal.write(draw(items, selected))
+        Terminal.write("\n")
 
-        var code = Terminal::read_key()
+        var code = Terminal.read_key()
         var e = to_event(code)
         var next = step(e, selected, count)
         if next == -1 {
@@ -147,8 +147,8 @@ fn main() {
             }
         }
     }
-    Terminal::restore()
-    Terminal::clear()
-    Terminal::move(1, 1)
+    Terminal.restore()
+    Terminal.clear()
+    Terminal.move(1, 1)
     println("You chose item ${selected}.")
 }

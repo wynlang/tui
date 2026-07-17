@@ -9,20 +9,20 @@ fn main() {
     // measured with len() (bytes), the colored/accented rows would push the right
     // border out of line. They don't — display_width makes every row 1 column.
     var body = "Plain ASCII line\n"
-    body = body + Color::green("Green success line") + "\n"
-    body = body + Color::red("Red " + Color::bold("bold") + " error") + "\n"
+    body = body + Color.green("Green success line") + "\n"
+    body = body + Color.red("Red " + Color.bold("bold") + " error") + "\n"
     body = body + "Accented: café résumé naïve\n"
-    body = body + Color::cyan("Cyan — the widest line in this box")
+    body = body + Color.cyan("Cyan — the widest line in this box")
 
-    println(tui::render_box("Status", body))
+    println(tui.render_box("Status", body))
     println("")
 
     // Truncation is width-aware too: this long colored line is cut to 20 columns
     // and still closes its color with a reset so nothing bleeds past the border.
-    var long = Color::magenta("this magenta text is far too long to fit here")
-    println(tui::render_box("Truncated to 20", tui::truncate(long, 20)))
+    var long = Color.magenta("this magenta text is far too long to fit here")
+    println(tui.render_box("Truncated to 20", tui.truncate(long, 20)))
     println("")
 
     // Empty title => a plain top border.
-    println(tui::render_box("", "no title on this box\nsecond line"))
+    println(tui.render_box("", "no title on this box\nsecond line"))
 }

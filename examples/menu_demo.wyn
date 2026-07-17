@@ -12,19 +12,19 @@ fn main() {
     println("A menu, three selection states — the green ›row moves each time:")
     println("")
 
-    println(tui::menu_render("Wyn", items, 0))
+    println(tui.menu_render("Wyn", items, 0))
     println("")
-    println(tui::menu_render("Wyn", items, 2))
+    println(tui.menu_render("Wyn", items, 2))
     println("")
-    println(tui::menu_render("Wyn", items, 4))
+    println(tui.menu_render("Wyn", items, 4))
     println("")
 
     // Selection helpers wrap around the ends.
     var sel = 4
     var count = 5
-    println("wrap: from ${sel}, down -> ${tui::menu_down(sel, count)} (wraps to 0)")
-    println("wrap: from 0, up   -> ${tui::menu_up(0, count)} (wraps to ${count - 1})")
+    println("wrap: from ${sel}, down -> ${tui.menu_down(sel, count)} (wraps to 0)")
+    println("wrap: from 0, up   -> ${tui.menu_up(0, count)} (wraps to ${count - 1})")
 
     // A key can be classified for an event loop (see menu_interactive.wyn).
-    println("key 66 ('B' after ESC-[) classifies as: ${tui::key_name(tui::classify_key(66))}")
+    println("key 66 ('B' after ESC-[) classifies as: ${tui.key_name(tui.classify_key(66))}")
 }

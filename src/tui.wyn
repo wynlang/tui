@@ -249,7 +249,7 @@ pub fn render_box(title: string, body: string) -> string {
 
 pub fn menu_row(item: string, is_selected: bool) -> string {
     if is_selected {
-        return Color::green("› " + item)
+        return Color.green("› " + item)
     }
     return "  " + item
 }
@@ -301,21 +301,21 @@ pub fn menu_up(selected: int, count: int) -> int {
 
 // Enter interactive mode: raw input + clear.
 pub fn screen_begin() {
-    Terminal::raw_mode()
-    Terminal::clear()
+    Terminal.raw_mode()
+    Terminal.clear()
 }
 
 // Leave interactive mode: restore cooked input.
 pub fn screen_end() {
-    Terminal::restore()
+    Terminal.restore()
 }
 
 // Full redraw: clear, home the cursor, write `frame` (a \n-joined string).
 pub fn screen_render(frame: string) {
-    Terminal::clear()
-    Terminal::move(1, 1)
-    Terminal::write(frame)
-    Terminal::write("\n")
+    Terminal.clear()
+    Terminal.move(1, 1)
+    Terminal.write(frame)
+    Terminal.write("\n")
 }
 
 // ---------------------------------------------------------------------------
