@@ -1,0 +1,4 @@
+[project]
+name = "tui"
+version = "0.1.0"
+description = "Terminal UI toolkit: display-width-aware boxes, menus, and a keyboard event loop"

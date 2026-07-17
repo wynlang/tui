@@ -1,0 +1,161 @@
+// Tests for the tui library. Run from the package root:  wyn test tests/
+// (The tui.wyn symlink beside this file lets `import tui` resolve to ../src.)
+import tui
+
+// --- display_width: the key primitive ---------------------------------------
+
+test "display_width skips ANSI color codes" {
+    assert_eq(tui::display_width(Color::green("hi")), 2)
+}
+
+test "display_width plain ASCII == length" {
+    assert_eq(tui::display_width("hello"), 5)
+}
+
+test "display_width counts UTF-8 codepoints not bytes" {
+    // "héllo" is 6 bytes but 5 visible columns.
+    assert_eq(tui::display_width("héllo"), 5)
+}
+
+test "display_width of box-drawing glyphs" {
+    // Each is a 3-byte UTF-8 codepoint but 1 column.
+    assert_eq(tui::display_width("│─┌"), 3)
+}
+
+test "display_width with nested styles" {
+    assert_eq(tui::display_width(Color::bold(Color::cyan("test"))), 4)
+}
+
+test "display_width of empty string" {
+    assert_eq(tui::display_width(""), 0)
+}
+
+// --- text helpers ------------------------------------------------------------
+
+test "pad_to reaches target visible width on plain text" {
+    assert_eq(tui::display_width(tui::pad_to("hi", 6)), 6)
+}
+
+test "pad_to reaches target visible width on colored text" {
+    // The padding must account for zero-width color codes, not raw bytes.
+    assert_eq(tui::display_width(tui::pad_to(Color::red("hi"), 6)), 6)
+}
+
+test "pad_to leaves already-wide strings unchanged" {
+    assert_eq(tui::pad_to("hello", 3), "hello")
+}
+
+test "pad_left right-aligns to visible width" {
+    assert_eq(tui::display_width(tui::pad_left("x", 5)), 5)
+}
+
+test "truncate shortens to visible width" {
+    assert_eq(tui::truncate("hello world", 5), "hello")
+}
+
+test "truncate leaves short strings unchanged" {
+    assert_eq(tui::truncate("hi", 10), "hi")
+}
+
+test "truncate of colored text keeps within target visible width" {
+    var t = tui::truncate(Color::magenta("abcdefghij"), 4)
+    assert(tui::display_width(t) <= 4)
+}
+
+// --- box drawing -------------------------------------------------------------
+
+test "content_width is the widest visible line" {
+    // "cccc" (4) is widest; title "T" (1) doesn't force it wider.
+    assert_eq(tui::content_width("T", "a\nbb\ncccc"), 4)
+}
+
+test "content_width honors a long title" {
+    assert_eq(tui::content_width("LongTitle", "x"), 10)
+}
+
+test "box_bottom length tracks width" {
+    // 1 corner + (w+2) horizontals + 1 corner, each 1 column.
+    assert_eq(tui::display_width(tui::box_bottom(5)), 9)
+}
+
+test "every rendered box row has equal visible width" {
+    // Alignment proof: colored + plain rows must share one border column.
+    var box = tui::render_box("Box", "plain\n" + Color::green("green") + "\n" + Color::cyan("cyan is longer"))
+    var lines = box.split("\n")
+    var first = tui::display_width(lines[0])
+    var i = 0
+    var all_equal = true
+    while i < lines.len() {
+        if tui::display_width(lines[i]) != first { all_equal = false }
+        i = i + 1
+    }
+    assert(all_equal)
+}
+
+// --- menu widget -------------------------------------------------------------
+
+test "menu_render frames every item plus 2 borders" {
+    var m = tui::menu_render("M", "one\ntwo\nthree", 1)
+    var lines = m.split("\n")
+    // 3 items + top + bottom = 5 non-empty lines.
+    assert_eq(lines.len(), 5)
+}
+
+test "menu rows all share one visible width" {
+    var m = tui::menu_render("Menu", "Dashboard\nPackages\nQuit", 1)
+    var lines = m.split("\n")
+    var first = tui::display_width(lines[0])
+    var i = 0
+    var all_equal = true
+    while i < lines.len() {
+        if tui::display_width(lines[i]) != first { all_equal = false }
+        i = i + 1
+    }
+    assert(all_equal)
+}
+
+test "menu_down wraps at the end" {
+    assert_eq(tui::menu_down(2, 3), 0)
+}
+
+test "menu_down advances in the middle" {
+    assert_eq(tui::menu_down(0, 3), 1)
+}
+
+test "menu_up wraps at the start" {
+    assert_eq(tui::menu_up(0, 3), 2)
+}
+
+// --- keyboard classification -------------------------------------------------
+
+test "classify arrow-up code" {
+    assert_eq(tui::classify_key(65), tui::key_up())
+}
+
+test "classify enter CR" {
+    assert_eq(tui::classify_key(13), tui::key_enter())
+}
+
+test "classify enter LF" {
+    assert_eq(tui::classify_key(10), tui::key_enter())
+}
+
+test "classify printable char" {
+    assert_eq(tui::classify_key(97), tui::key_char())
+}
+
+test "key_name is human readable" {
+    assert_eq(tui::key_name(tui::classify_key(66)), "Down")
+}
+
+test "is_quit recognizes q" {
+    assert(tui::is_quit(113))
+}
+
+test "is_quit recognizes Esc" {
+    assert(tui::is_quit(27))
+}
+
+test "is_quit rejects a normal char" {
+    assert(not tui::is_quit(97))
+}

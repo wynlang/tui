@@ -1,0 +1,30 @@
+// menu_demo — render the Menu widget (non-interactive) at a few selection
+// positions, showing the highlighted row move. This is the S1 render path.
+//
+// Run from the package root:  wyn run examples/menu_demo.wyn
+import tui
+
+fn main() {
+    // Items are passed as a "\n"-joined string (see the API note in src/tui.wyn:
+    // array *parameters* don't survive a module boundary in v1.17.0, strings do).
+    var items = "Dashboard\nExamples\nPackages\nConcurrency\nQuit"
+
+    println("A menu, three selection states — the green ›row moves each time:")
+    println("")
+
+    println(tui::menu_render("Wyn", items, 0))
+    println("")
+    println(tui::menu_render("Wyn", items, 2))
+    println("")
+    println(tui::menu_render("Wyn", items, 4))
+    println("")
+
+    // Selection helpers wrap around the ends.
+    var sel = 4
+    var count = 5
+    println("wrap: from ${sel}, down -> ${tui::menu_down(sel, count)} (wraps to 0)")
+    println("wrap: from 0, up   -> ${tui::menu_up(0, count)} (wraps to ${count - 1})")
+
+    // A key can be classified for an event loop (see menu_interactive.wyn).
+    println("key 66 ('B' after ESC-[) classifies as: ${tui::key_name(tui::classify_key(66))}")
+}

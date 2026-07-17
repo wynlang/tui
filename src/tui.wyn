@@ -1,0 +1,366 @@
+// tui — a small, pretty terminal-UI library for Wyn.
+//
+// Stage 1 of the staged plan in internal-docs/TUI_DESIGN.md:
+//   * display_width  — visible column count, skipping ANSI \x1b[..m escapes and
+//     counting UTF-8 codepoints (NOT bytes). The key primitive: it makes colored
+//     and multibyte content line up inside boxes.
+//   * text helpers   — pad_to / pad_left / truncate, all width-aware.
+//   * box drawing     — a titled, bordered box that stays aligned even when its
+//     content is colored (because widths are measured with display_width).
+//   * Menu widget    — a framed list with a highlighted selected row.
+//   * Screen helpers — raw-mode / restore / clear + move full-redraw wrappers, and
+//     a keyboard classifier + predicates for a simple interactive loop.
+//
+// Pure Wyn over the native Terminal / Color builtins.
+//
+// DESIGN NOTE (compiler limitation): this importable library is intentionally
+// *free functions over primitive types only*. The current Wyn compiler
+// (v1.17.0) miscompiles `struct` and payload-carrying `enum` types when they are
+// DEFINED in one module and used from another (duplicate C typedef / _toString
+// emission). Structs, enums and `match` all work fine within a single file — so
+// the interactive example (examples/menu_interactive.wyn) shows the design doc's
+// "match over an Event enum" pattern locally, while everything reusable across
+// modules lives here as functions. When cross-module types are fixed, a Menu
+// struct + Key enum can wrap these directly.
+
+// ---------------------------------------------------------------------------
+// Box-drawing glyphs (Unicode).
+// ---------------------------------------------------------------------------
+
+pub fn glyph_tl() -> string { return "┌" }
+pub fn glyph_tr() -> string { return "┐" }
+pub fn glyph_bl() -> string { return "└" }
+pub fn glyph_br() -> string { return "┘" }
+pub fn glyph_h() -> string { return "─" }
+pub fn glyph_v() -> string { return "│" }
+
+// ---------------------------------------------------------------------------
+// Primitive: repeat a string n times.
+// ---------------------------------------------------------------------------
+
+pub fn repeat_str(c: string, n: int) -> string {
+    var s = ""
+    var i = 0
+    while i < n {
+        s = s + c
+        i = i + 1
+    }
+    return s
+}
+
+// ---------------------------------------------------------------------------
+// display_width(s): the number of terminal columns `s` occupies.
+//
+//   * Skips ANSI CSI escape sequences: ESC (0x1b) '[' ... final byte 0x40-0x7e.
+//     Those are zero-width (color/style codes), so they must not be counted.
+//   * Counts UTF-8 codepoints, not bytes: a byte starts a new codepoint when it
+//     is ASCII (< 0x80) or a lead byte (>= 0xC0); continuation bytes (0x80-0xBF)
+//     are skipped. So "é" (2 bytes) and "│" (3 bytes) each count as width 1.
+//
+// (Wide/CJK double-width chars are treated as width 1 for now, per the S1 scope.)
+// ---------------------------------------------------------------------------
+
+pub fn display_width(s: string) -> int {
+    var w = 0
+    var i = 0
+    var n = s.len()
+    while i < n {
+        var b = s.char_at(i).ascii()
+        if b == 27 {
+            // ESC — consume the CSI escape sequence without counting it.
+            i = i + 1
+            if i < n and s.char_at(i).ascii() == 91 {
+                i = i + 1
+            }
+            var done = false
+            while i < n and not done {
+                var c = s.char_at(i).ascii()
+                i = i + 1
+                if c >= 64 and c <= 126 {
+                    done = true
+                }
+            }
+        } else {
+            // Count only codepoint starts (ASCII or UTF-8 lead byte).
+            if b < 128 or b >= 192 {
+                w = w + 1
+            }
+            i = i + 1
+        }
+    }
+    return w
+}
+
+// ---------------------------------------------------------------------------
+// Text helpers, all measured with display_width so color/multibyte don't break.
+// ---------------------------------------------------------------------------
+
+// Right-pad with spaces to at least `width` visible columns.
+pub fn pad_to(s: string, width: int) -> string {
+    var w = display_width(s)
+    if w >= width {
+        return s
+    }
+    return s + repeat_str(" ", width - w)
+}
+
+// Left-pad (right-align) with spaces to at least `width` visible columns.
+pub fn pad_left(s: string, width: int) -> string {
+    var w = display_width(s)
+    if w >= width {
+        return s
+    }
+    return repeat_str(" ", width - w) + s
+}
+
+// Truncate to at most `width` visible columns. ANSI escapes are preserved (they
+// are zero-width) and a reset is appended if any style was left open.
+pub fn truncate(s: string, width: int) -> string {
+    if display_width(s) <= width {
+        return s
+    }
+    var out = ""
+    var i = 0
+    var n = s.len()
+    var vis = 0
+    var saw_esc = false
+    while i < n and vis < width {
+        var b = s.char_at(i).ascii()
+        if b == 27 {
+            saw_esc = true
+            out = out + s.char_at(i)
+            i = i + 1
+            if i < n and s.char_at(i).ascii() == 91 {
+                out = out + s.char_at(i)
+                i = i + 1
+            }
+            var done = false
+            while i < n and not done {
+                var c = s.char_at(i).ascii()
+                out = out + s.char_at(i)
+                i = i + 1
+                if c >= 64 and c <= 126 {
+                    done = true
+                }
+            }
+        } else {
+            // Copy one full codepoint (lead byte + any continuation bytes).
+            out = out + s.char_at(i)
+            i = i + 1
+            var more = true
+            while i < n and more {
+                var cb = s.char_at(i).ascii()
+                if cb >= 128 and cb < 192 {
+                    out = out + s.char_at(i)
+                    i = i + 1
+                } else {
+                    more = false
+                }
+            }
+            vis = vis + 1
+        }
+    }
+    if saw_esc {
+        out = out + "\x1b[0m"
+    }
+    return out
+}
+
+// ---------------------------------------------------------------------------
+// Box drawing.
+//
+// API NOTE: the multi-line functions take `body` as a single string of lines
+// joined by "\n", NOT a [string] array. This is deliberate — the v1.17.0
+// compiler miscompiles array-typed *parameters* across a module boundary (they
+// arrive typed as `long long`), whereas string params work perfectly. Splitting
+// the body inside the function sidesteps that entirely and keeps the whole
+// library importable. Use `"line1\n" + "line2"` or join yourself.
+//
+// content_width chooses the interior content width: the widest content line (by
+// display_width), also wide enough to fit the title in the top border.
+// ---------------------------------------------------------------------------
+
+pub fn content_width(title: string, body: string) -> int {
+    var w = 0
+    var lines = body.split("\n")
+    var i = 0
+    while i < lines.len() {
+        var lw = display_width(lines[i])
+        if lw > w {
+            w = lw
+        }
+        i = i + 1
+    }
+    // Title sits in the top border as "─ title " so it needs w >= dw(title)+1.
+    var tw = display_width(title)
+    if tw > 0 and tw + 1 > w {
+        w = tw + 1
+    }
+    return w
+}
+
+// Top border with an optional inline title: ┌─ Title ─────┐
+pub fn box_top(title: string, w: int) -> string {
+    var span = w + 2
+    if display_width(title) == 0 {
+        return glyph_tl() + repeat_str(glyph_h(), span) + glyph_tr()
+    }
+    // "─ " + title + " " then fill the rest with ─.
+    var used = 2 + display_width(title) + 1
+    var fill = span - used
+    if fill < 0 {
+        fill = 0
+    }
+    return glyph_tl() + glyph_h() + " " + title + " " + repeat_str(glyph_h(), fill) + glyph_tr()
+}
+
+pub fn box_bottom(w: int) -> string {
+    return glyph_bl() + repeat_str(glyph_h(), w + 2) + glyph_br()
+}
+
+// A single content row: │ content(truncated+padded to w) │
+pub fn box_row(content: string, w: int) -> string {
+    return glyph_v() + " " + pad_to(truncate(content, w), w) + " " + glyph_v()
+}
+
+// Render a full titled box around `body` (lines joined by "\n"), returned as one
+// string with newlines. Content may be colored — borders still align because
+// widths use display_width.
+pub fn render_box(title: string, body: string) -> string {
+    var w = content_width(title, body)
+    var out = box_top(title, w) + "\n"
+    var lines = body.split("\n")
+    var i = 0
+    while i < lines.len() {
+        out = out + box_row(lines[i], w) + "\n"
+        i = i + 1
+    }
+    out = out + box_bottom(w)
+    return out
+}
+
+// ---------------------------------------------------------------------------
+// Menu widget — the core reusable S1 widget.
+//
+// Format one row: the selected row gets a "›" marker and is colored green;
+// others are indented to match. Both prefixes are 2 visible columns wide, so
+// rows stay aligned regardless of the color codes on the selected one.
+// ---------------------------------------------------------------------------
+
+pub fn menu_row(item: string, is_selected: bool) -> string {
+    if is_selected {
+        return Color::green("› " + item)
+    }
+    return "  " + item
+}
+
+// Render a framed menu: a titled box whose `selected`-th item is highlighted.
+// `items` is a "\n"-joined string of item labels (see the box-drawing API NOTE).
+pub fn menu_render(title: string, items: string, selected: int) -> string {
+    var labels = items.split("\n")
+    var body = ""
+    var i = 0
+    while i < labels.len() {
+        if i > 0 {
+            body = body + "\n"
+        }
+        // NB: bind the comparison to a var before passing it — the v1.17.0
+        // checker mis-types a `==` expression used directly as a bool argument.
+        var sel = i == selected
+        body = body + menu_row(labels[i], sel)
+        i = i + 1
+    }
+    // NB: bind the call result to a var before returning it. `return f(local)`
+    // where `local` is a string built in this function releases `local` too
+    // early under v1.17.0's RC (the callee sees an empty string); the temporary
+    // keeps it alive across the call.
+    var framed = render_box(title, body)
+    return framed
+}
+
+// Selection movement with wrap-around (return the new selected index).
+pub fn menu_down(selected: int, count: int) -> int {
+    var s = selected + 1
+    if s >= count {
+        s = 0
+    }
+    return s
+}
+
+pub fn menu_up(selected: int, count: int) -> int {
+    var s = selected - 1
+    if s < 0 {
+        s = count - 1
+    }
+    return s
+}
+
+// ---------------------------------------------------------------------------
+// Screen: thin wrappers over the native Terminal builtin for a full-redraw loop.
+// ---------------------------------------------------------------------------
+
+// Enter interactive mode: raw input + clear.
+pub fn screen_begin() {
+    Terminal::raw_mode()
+    Terminal::clear()
+}
+
+// Leave interactive mode: restore cooked input.
+pub fn screen_end() {
+    Terminal::restore()
+}
+
+// Full redraw: clear, home the cursor, write `frame` (a \n-joined string).
+pub fn screen_render(frame: string) {
+    Terminal::clear()
+    Terminal::move(1, 1)
+    Terminal::write(frame)
+    Terminal::write("\n")
+}
+
+// ---------------------------------------------------------------------------
+// Keyboard classification.
+//
+// Terminal::read_key() returns a raw int keycode. classify_key folds it into a
+// small stable category code so callers can branch (or `match`) on the result.
+// Arrow keys arrive as the final letter of an ESC-[ sequence (A/B/C/D) on the
+// terminals we target; Enter is 13 or 10; Esc is 27.
+// ---------------------------------------------------------------------------
+
+pub fn key_up() -> int { return 1 }
+pub fn key_down() -> int { return 2 }
+pub fn key_left() -> int { return 3 }
+pub fn key_right() -> int { return 4 }
+pub fn key_enter() -> int { return 5 }
+pub fn key_esc() -> int { return 6 }
+pub fn key_char() -> int { return 7 }
+pub fn key_other() -> int { return 8 }
+
+pub fn classify_key(code: int) -> int {
+    if code == 65 { return key_up() }      // 'A' (ESC [ A)
+    if code == 66 { return key_down() }     // 'B'
+    if code == 67 { return key_right() }    // 'C'
+    if code == 68 { return key_left() }     // 'D'
+    if code == 13 { return key_enter() }
+    if code == 10 { return key_enter() }
+    if code == 27 { return key_esc() }
+    if code >= 32 and code < 127 { return key_char() }
+    return key_other()
+}
+
+// Human-readable name for a classified key category.
+pub fn key_name(kind: int) -> string {
+    if kind == key_up() { return "Up" }
+    if kind == key_down() { return "Down" }
+    if kind == key_left() { return "Left" }
+    if kind == key_right() { return "Right" }
+    if kind == key_enter() { return "Enter" }
+    if kind == key_esc() { return "Esc" }
+    if kind == key_char() { return "Char" }
+    return "Other"
+}
+
+// Convenience: is this raw code a "quit" request? (q, Q, or Esc.)
+pub fn is_quit(code: int) -> bool {
+    return code == 113 or code == 81 or code == 27
+}

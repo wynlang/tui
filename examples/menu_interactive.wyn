@@ -1,0 +1,154 @@
+// menu_interactive — a live arrow-key menu.
+//
+// Run from the package root:  wyn run examples/menu_interactive.wyn
+// Keys: ↑/↓ or k/j to move, Enter to select, q or Esc to quit.
+//
+// This example is SELF-CONTAINED (it does not `import tui`) on purpose: it shows
+// the design doc's "handle events by `match` over an Event enum" pattern, and the
+// v1.17.0 compiler only supports payload-carrying enums / `match` WITHIN a single
+// module. The box/menu rendering here is a trimmed copy of the library's; the
+// reusable, importable versions live in src/tui.wyn. When cross-module enums are
+// fixed this file collapses to `import tui` + the enum.
+
+// --- Event model: match over an enum, not callbacks -------------------------
+// Every variant carries an int payload; a uniform shape avoids the compiler's
+// mixed payload/payload-free enum bug.
+enum Event {
+    MoveUp(int),
+    MoveDown(int),
+    Select(int),
+    Quit(int),
+    Ignore(int)
+}
+
+// Decode a raw keycode from Terminal::read_key() into an Event.
+fn to_event(code: int) -> Event {
+    if code == 65 { return Event::MoveUp(code) }      // Up arrow (ESC [ A)
+    if code == 66 { return Event::MoveDown(code) }     // Down arrow (ESC [ B)
+    if code == 107 { return Event::MoveUp(code) }      // 'k'
+    if code == 106 { return Event::MoveDown(code) }    // 'j'
+    if code == 13 { return Event::Select(code) }       // Enter (CR)
+    if code == 10 { return Event::Select(code) }       // Enter (LF)
+    if code == 113 { return Event::Quit(code) }        // 'q'
+    if code == 27 { return Event::Quit(code) }         // Esc
+    return Event::Ignore(code)
+}
+
+// --- Minimal width-aware rendering (see src/tui.wyn for the real library) ----
+fn repeat_str(c: string, n: int) -> string {
+    var s = ""
+    var i = 0
+    while i < n { s = s + c; i = i + 1 }
+    return s
+}
+
+fn display_width(s: string) -> int {
+    var w = 0
+    var i = 0
+    var n = s.len()
+    while i < n {
+        var b = s.char_at(i).ascii()
+        if b == 27 {
+            i = i + 1
+            if i < n and s.char_at(i).ascii() == 91 { i = i + 1 }
+            var done = false
+            while i < n and not done {
+                var c = s.char_at(i).ascii()
+                i = i + 1
+                if c >= 64 and c <= 126 { done = true }
+            }
+        } else {
+            if b < 128 or b >= 192 { w = w + 1 }
+            i = i + 1
+        }
+    }
+    return w
+}
+
+fn pad_to(s: string, width: int) -> string {
+    var w = display_width(s)
+    if w >= width { return s }
+    return s + repeat_str(" ", width - w)
+}
+
+// Render the whole framed menu as a string for the given selection.
+fn draw(items: string, selected: int) -> string {
+    var labels = items.split("\n")
+    // width = widest row (rows are "  label" or "› label", both prefix width 2)
+    var w = 0
+    var i = 0
+    while i < labels.len() {
+        var lw = display_width(labels[i]) + 2
+        if lw > w { w = lw }
+        i = i + 1
+    }
+    var out = "┌" + repeat_str("─", w + 2) + "┐\n"
+    i = 0
+    while i < labels.len() {
+        var row = "  " + labels[i]
+        if i == selected { row = Color::green("› " + labels[i]) }
+        out = out + "│ " + pad_to(row, w) + " │\n"
+        i = i + 1
+    }
+    out = out + "└" + repeat_str("─", w + 2) + "┘\n"
+    out = out + Color::dim("  ↑/↓ move · enter select · q quit")
+    return out
+}
+
+fn count_of(items: string) -> int {
+    var labels = items.split("\n")
+    return labels.len()
+}
+
+// Apply an event to the selection, returning the new selected index. A negative
+// return is the sentinel for "quit"; -2 means "selected (also quit the demo)".
+fn step(e: Event, selected: int, count: int) -> int {
+    match e {
+        Event::MoveUp(x) => {
+            var s = selected - 1
+            if s < 0 { s = count - 1 }
+            return s
+        }
+        Event::MoveDown(x) => {
+            var s = selected + 1
+            if s >= count { s = 0 }
+            return s
+        }
+        Event::Select(x) => { return -2 }
+        Event::Quit(x) => { return -1 }
+        Event::Ignore(x) => { return selected }
+    }
+    return selected
+}
+
+fn main() {
+    var items = "Dashboard\nExamples\nPackages\nConcurrency\nQuit"
+    var count = count_of(items)
+    var selected = 0
+
+    Terminal::raw_mode()
+    var running = true
+    while running {
+        Terminal::clear()
+        Terminal::move(1, 1)
+        Terminal::write(draw(items, selected))
+        Terminal::write("\n")
+
+        var code = Terminal::read_key()
+        var e = to_event(code)
+        var next = step(e, selected, count)
+        if next == -1 {
+            running = false
+        } else {
+            if next == -2 {
+                running = false
+            } else {
+                selected = next
+            }
+        }
+    }
+    Terminal::restore()
+    Terminal::clear()
+    Terminal::move(1, 1)
+    println("You chose item ${selected}.")
+}
