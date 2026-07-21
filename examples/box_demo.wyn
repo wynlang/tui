@@ -1,4 +1,4 @@
-// box_demo — a titled box whose content is colored, proving that borders stay
+// box_demo - a titled box whose content is colored, proving that borders stay
 // aligned because widths are measured with tui::display_width (not byte len()).
 //
 // Run from the package root:  wyn run examples/box_demo.wyn
@@ -7,12 +7,12 @@ import tui
 fn main() {
     // A box whose lines mix plain, colored and multibyte content. If widths were
     // measured with len() (bytes), the colored/accented rows would push the right
-    // border out of line. They don't — display_width makes every row 1 column.
+    // border out of line. They don't - display_width makes every row 1 column.
     var body = "Plain ASCII line\n"
     body = body + Color.green("Green success line") + "\n"
     body = body + Color.red("Red " + Color.bold("bold") + " error") + "\n"
     body = body + "Accented: café résumé naïve\n"
-    body = body + Color.cyan("Cyan — the widest line in this box")
+    body = body + Color.cyan("Cyan - the widest line in this box")
 
     println(tui.render_box("Status", body))
     println("")

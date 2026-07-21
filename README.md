@@ -1,4 +1,4 @@
-# tui — Terminal UI toolkit for Wyn
+# tui - Terminal UI toolkit for Wyn
 
 A small, pretty terminal-UI library, pure Wyn over the native `Terminal` and
 `Color` builtins. The headline feature is **display-width-aware layout**: boxes
@@ -35,7 +35,7 @@ renderers) is built on it, so colored content never breaks a border:
 │ Green success line                 │   <- green, still aligned
 │ Red bold error                     │   <- red + bold, still aligned
 │ Accented: café résumé naïve        │   <- multibyte, still aligned
-│ Cyan — the widest line in this box │
+│ Cyan - the widest line in this box │
 └────────────────────────────────────┘
 ```
 
@@ -45,22 +45,22 @@ All functions are free functions in the `tui` module (see the note on the
 compiler below for why there are no exported structs/enums yet).
 
 ### Width & text
-- `display_width(s) -> int` — visible column count (skips ANSI, counts codepoints).
-- `pad_to(s, width) -> string` — right-pad to `width` visible columns.
-- `pad_left(s, width) -> string` — left-pad (right-align) to `width` columns.
-- `truncate(s, width) -> string` — cut to `width` visible columns, closing any
+- `display_width(s) -> int` - visible column count (skips ANSI, counts codepoints).
+- `pad_to(s, width) -> string` - right-pad to `width` visible columns.
+- `pad_left(s, width) -> string` - left-pad (right-align) to `width` columns.
+- `truncate(s, width) -> string` - cut to `width` visible columns, closing any
   open color with a reset.
 - `repeat_str(c, n) -> string`.
 
 ### Boxes
-- `render_box(title, body) -> string` — a titled, bordered box. `body` is the
+- `render_box(title, body) -> string` - a titled, bordered box. `body` is the
   content lines **joined by `"\n"`**.
 - `content_width(title, body) -> int`, `box_top(title, w)`, `box_bottom(w)`,
-  `box_row(content, w)` — the pieces, if you want to compose your own.
+  `box_row(content, w)` - the pieces, if you want to compose your own.
 - Glyphs: `glyph_tl/tr/bl/br/h/v()`.
 
 ### Menu widget
-- `menu_render(title, items, selected) -> string` — a framed menu; `items` is a
+- `menu_render(title, items, selected) -> string` - a framed menu; `items` is a
   `"\n"`-joined string, `selected` is highlighted in green with a `›` marker.
 
   ```
@@ -76,9 +76,9 @@ compiler below for why there are no exported structs/enums yet).
   `menu_down(selected, count) -> int` (both wrap around).
 
 ### Screen & keyboard (for interactive apps)
-- `screen_begin()` / `screen_end()` — raw-mode enter / restore.
-- `screen_render(frame)` — clear, home the cursor, write a full frame.
-- `classify_key(code) -> int` — fold a raw `Terminal::read_key()` code into a
+- `screen_begin()` / `screen_end()` - raw-mode enter / restore.
+- `screen_render(frame)` - clear, home the cursor, write a full frame.
+- `classify_key(code) -> int` - fold a raw `Terminal::read_key()` code into a
   stable category; compare against `key_up/down/left/right/enter/esc/char/other()`.
 - `key_name(kind) -> string`, `is_quit(code) -> bool`.
 
@@ -100,10 +100,10 @@ box drawing, the `Menu` widget, screen wrappers, keyboard classification, and an
 interactive menu loop. 30 unit tests (`wyn test tests/`).
 
 **Next (per `internal-docs/TUI_DESIGN.md`):**
-- S2 — more widgets: Text/Paragraph, Input/TextField, ProgressBar, StatusBar,
+- S2 - more widgets: Text/Paragraph, Input/TextField, ProgressBar, StatusBar,
   and a `Rect` + `split_h/split_v` layout splitter.
-- S3 — a double-buffered diff renderer (flicker-free) + Tabs / SplitPane / ScrollView.
-- S4 — the `wyn tui` dashboard assembling it all.
+- S3 - a double-buffered diff renderer (flicker-free) + Tabs / SplitPane / ScrollView.
+- S4 - the `wyn tui` dashboard assembling it all.
 
 ## Note on the current compiler (v1.17.0)
 
@@ -112,7 +112,7 @@ compiler currently miscompiles a few cross-module constructs, which shaped the
 API:
 
 - **`struct` / payload `enum` defined in one module, used from another** emit
-  duplicate C typedefs — so `Menu`/`Key` are functions + an int category rather
+  duplicate C typedefs - so `Menu`/`Key` are functions + an int category rather
   than exported types. They work fine *within* a file, which is why
   `menu_interactive.wyn` is self-contained and uses the `Event` enum directly.
 - **Array-typed *parameters* don't survive a module boundary** (they arrive
@@ -120,7 +120,7 @@ API:
   take a `"\n"`-joined string instead of `[string]`.
 - Two smaller checker/RC quirks are worked around inside `src/tui.wyn` (a `==`
   used directly as a bool argument, and `return f(local)` releasing a locally
-  built string too early — both fixed by binding to a `var` first; see the
+  built string too early - both fixed by binding to a `var` first; see the
   comments there).
 
 When these are fixed, a `Menu` struct and `Key` enum can wrap these functions

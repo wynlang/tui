@@ -1,4 +1,4 @@
-// menu_interactive — a live arrow-key menu.
+// menu_interactive - a live arrow-key menu.
 //
 // Run from the package root:  wyn run examples/menu_interactive.wyn
 // Keys: ↑/↓ or k/j to move, Enter to select, q or Esc to quit.

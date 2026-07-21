@@ -1,14 +1,14 @@
-// tui — a small, pretty terminal-UI library for Wyn.
+// tui - a small, pretty terminal-UI library for Wyn.
 //
 // Stage 1 of the staged plan in internal-docs/TUI_DESIGN.md:
-//   * display_width  — visible column count, skipping ANSI \x1b[..m escapes and
+//   * display_width  - visible column count, skipping ANSI \x1b[..m escapes and
 //     counting UTF-8 codepoints (NOT bytes). The key primitive: it makes colored
 //     and multibyte content line up inside boxes.
-//   * text helpers   — pad_to / pad_left / truncate, all width-aware.
-//   * box drawing     — a titled, bordered box that stays aligned even when its
+//   * text helpers   - pad_to / pad_left / truncate, all width-aware.
+//   * box drawing     - a titled, bordered box that stays aligned even when its
 //     content is colored (because widths are measured with display_width).
-//   * Menu widget    — a framed list with a highlighted selected row.
-//   * Screen helpers — raw-mode / restore / clear + move full-redraw wrappers, and
+//   * Menu widget    - a framed list with a highlighted selected row.
+//   * Screen helpers - raw-mode / restore / clear + move full-redraw wrappers, and
 //     a keyboard classifier + predicates for a simple interactive loop.
 //
 // Pure Wyn over the native Terminal / Color builtins.
@@ -17,7 +17,7 @@
 // *free functions over primitive types only*. The current Wyn compiler
 // (v1.17.0) miscompiles `struct` and payload-carrying `enum` types when they are
 // DEFINED in one module and used from another (duplicate C typedef / _toString
-// emission). Structs, enums and `match` all work fine within a single file — so
+// emission). Structs, enums and `match` all work fine within a single file - so
 // the interactive example (examples/menu_interactive.wyn) shows the design doc's
 // "match over an Event enum" pattern locally, while everything reusable across
 // modules lives here as functions. When cross-module types are fixed, a Menu
@@ -67,7 +67,7 @@ pub fn display_width(s: string) -> int {
     while i < n {
         var b = s.char_at(i).ascii()
         if b == 27 {
-            // ESC — consume the CSI escape sequence without counting it.
+            // ESC - consume the CSI escape sequence without counting it.
             i = i + 1
             if i < n and s.char_at(i).ascii() == 91 {
                 i = i + 1
@@ -170,7 +170,7 @@ pub fn truncate(s: string, width: int) -> string {
 // Box drawing.
 //
 // API NOTE: the multi-line functions take `body` as a single string of lines
-// joined by "\n", NOT a [string] array. This is deliberate — the v1.17.0
+// joined by "\n", NOT a [string] array. This is deliberate - the v1.17.0
 // compiler miscompiles array-typed *parameters* across a module boundary (they
 // arrive typed as `long long`), whereas string params work perfectly. Splitting
 // the body inside the function sidesteps that entirely and keeps the whole
@@ -224,7 +224,7 @@ pub fn box_row(content: string, w: int) -> string {
 }
 
 // Render a full titled box around `body` (lines joined by "\n"), returned as one
-// string with newlines. Content may be colored — borders still align because
+// string with newlines. Content may be colored - borders still align because
 // widths use display_width.
 pub fn render_box(title: string, body: string) -> string {
     var w = content_width(title, body)
@@ -240,7 +240,7 @@ pub fn render_box(title: string, body: string) -> string {
 }
 
 // ---------------------------------------------------------------------------
-// Menu widget — the core reusable S1 widget.
+// Menu widget - the core reusable S1 widget.
 //
 // Format one row: the selected row gets a "›" marker and is colored green;
 // others are indented to match. Both prefixes are 2 visible columns wide, so
@@ -264,7 +264,7 @@ pub fn menu_render(title: string, items: string, selected: int) -> string {
         if i > 0 {
             body = body + "\n"
         }
-        // NB: bind the comparison to a var before passing it — the v1.17.0
+        // NB: bind the comparison to a var before passing it - the v1.17.0
         // checker mis-types a `==` expression used directly as a bool argument.
         var sel = i == selected
         body = body + menu_row(labels[i], sel)

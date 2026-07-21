@@ -1,4 +1,4 @@
-// menu_demo — render the Menu widget (non-interactive) at a few selection
+// menu_demo - render the Menu widget (non-interactive) at a few selection
 // positions, showing the highlighted row move. This is the S1 render path.
 //
 // Run from the package root:  wyn run examples/menu_demo.wyn
@@ -9,7 +9,7 @@ fn main() {
     // array *parameters* don't survive a module boundary in v1.17.0, strings do).
     var items = "Dashboard\nExamples\nPackages\nConcurrency\nQuit"
 
-    println("A menu, three selection states — the green ›row moves each time:")
+    println("A menu, three selection states - the green ›row moves each time:")
     println("")
 
     println(tui.menu_render("Wyn", items, 0))
